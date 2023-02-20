@@ -1,2 +1,3 @@
 molecule/*/roles
 *.tar.gz
+*/__pycache__

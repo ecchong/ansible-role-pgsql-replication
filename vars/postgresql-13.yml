@@ -1,0 +1,17 @@
+---
+pgsqlrep_wal_keep_size: 16
+pgsqlrep_postgres_conf_lines:
+  - regexp: '#?wal_level = \w+(\s+#.*)'
+    line: 'wal_level = {{ pgsqlrep_wal_level }}\1'
+
+  - regexp: '#?max_wal_senders = \d+(\s+#.*)'
+    line: 'max_wal_senders = {{ pgsqlrep_max_wal_senders }}\1'
+
+  - regexp: '#?wal_keep_size = .*(\s+#.*)'
+    line: 'wal_keep_size = {{ pgsqlrep_wal_keep_segments * pgsqlrep_wal_keep_size }}\1'
+
+  - regexp: '#?synchronous_standby_names = .*'
+    line: "synchronous_standby_names = '{{ pgsqlrep_application_name }}'"
+
+  - regexp: '#?synchronous_commit = \w+(\s+#.*)'
+    line: 'synchronous_commit = {{ pgsqlrep_synchronous_commit }}\1'
