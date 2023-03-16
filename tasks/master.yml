@@ -1,12 +1,18 @@
 - name: Configure master server
   lineinfile:
     state: present
-    backrefs: yes
+    backrefs: "{{ item.with_backref | default(true) }}"
     dest: "{{ pgsqlrep_data_path[pgsql_major_version] }}/postgresql.conf"
     regexp: "{{ item.regexp }}"
     line: "{{ item.line }}"
+    insertafter: EOF
   loop: "{{ pgsqlrep_postgres_conf_lines }}"
   notify: restart postgresql
+
+- name: Make sure PostgreSQL is running
+  ansible.builtin.service:
+    name: postgresql.service
+    state: started
 
 - name: Create replication user account
   postgresql_user:
@@ -16,11 +22,33 @@
   become: yes
   become_user: postgres
 
+- name: Add additional privileges to allow replication user running pg_rewind
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_query:
+    db: postgres
+    query: "{{ item }}"
+  loop:
+  - GRANT EXECUTE ON function pg_catalog.pg_ls_dir(text, boolean, boolean) TO "{{ pgsqlrep_user }}";
+  - GRANT EXECUTE ON function pg_catalog.pg_stat_file(text, boolean) TO "{{ pgsqlrep_user }}";
+  - GRANT EXECUTE ON function pg_catalog.pg_read_binary_file(text) TO "{{ pgsqlrep_user }}";
+  - GRANT EXECUTE ON function pg_catalog.pg_read_binary_file(text, bigint, bigint, boolean) TO "{{ pgsqlrep_user }}";
+
 - name: Add trust in pg_hba.conf
   lineinfile:
     state: present
     dest: "{{ pgsqlrep_data_path[pgsql_major_version] }}/pg_hba.conf"
     regexp: 'host.*replication.*{{ item }}/32.*trust'
-    line: 'host    replication    {{ pgsqlrep_user }}  {{ item }}/32 trust'
+    line: 'host    replication    {{ pgsqlrep_user }}  {{ item }}/32 md5'
   loop: "{{ pgsqlrep_replica_address }}"
   notify: restart postgresql
+
+- name: Add master to pg_hba.conf
+  community.postgresql.postgresql_pg_hba:
+    dest: "{{ pgsqlrep_data_path[pgsql_major_version] }}/pg_hba.conf"
+    contype: host
+    databases: replication
+    users: "{{ pgsqlrep_user }}"
+    source: "{{ pgsqlrep_master_address }}/32"
+    method: md5
+

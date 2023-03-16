@@ -18,5 +18,6 @@
   ansible.builtin.include_vars: postgresql-13.yml
   when: pgsql_version.split('.')[0] == '13'
 
-- include_tasks: "{{ pgsqlrep_role }}.yml"
+- name: Run tasks for {{ pgsqlrep_role }}
+  ansible.builtin.include_tasks: "{{ pgsqlrep_role }}.yml"
   when: pgsqlrep_role != 'skip'

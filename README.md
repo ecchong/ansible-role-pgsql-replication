@@ -53,6 +53,7 @@ Role Variables
 | `pgsqlrep_master_address` | `[default IPv4 of the master]` | If you need something other than the default IPv4 address, for exaample, FQDN, define it here. |
 | `pgsqlrep_replica_address` | `[default IPv4 of the replica(s)]` | If you need something other than the default IPv4 address, for exaample, FQDN, define it here. |
 | `pgsqlrep_postgres_conf_lines` | `[see defaults/main.yml]` | Lines in `postgres.conf` that are set in order to enable streaming replication. |
+| `pgsqlrep_wal_keep_size` | `[see postgresql-13.yml]` | Replace `wal_keep_segements` in 13
 
 
 Dependencies
@@ -78,6 +79,9 @@ The following playbooks were tested on CentOS 7 and may need adjustment to work 
 ```yaml
 - name: Configure PostgreSQL streaming replication
   hosts: database_replica
+
+  collections:
+    - ansible.automation_platform_installer
 
   roles:
     - role: postgres
@@ -214,6 +218,35 @@ If the primary database node goes down, here is a playbook that can be used to f
   handlers:
     - name: restart tower
       command: ansible-tower-service restart
+```
+This example uses AAP installer collection.
+```yaml
+---
+- name: All DB
+  hosts: database[0], database_replica
+
+  tasks:
+  - debug:
+      msg:
+      - "Master: {{ groups['database'] }}"
+      - "Replica: {{ groups['database_replica'] }}"
+    run_once: true
+
+- name: Master
+  hosts: database[0]
+  roles:
+  - pgsql_replication
+
+- name: Replica
+  hosts: database_replica
+  collections:
+  - ansible.automation_platform_installer
+  roles:
+  - name: packages_el
+    vars:
+      packages_el_install_tower: no
+      packages_el_install_postgres: yes
+  - name: pgsql_replication
 ```
 
 License

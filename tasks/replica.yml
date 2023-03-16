@@ -25,6 +25,7 @@
     LD_LIBRARY_PATH: /opt/rh/rh-postgresql10/root/usr/lib64
     CPATH: /opt/rh/rh-postgresql10/root/usr/include
     PKG_CONFIG_PATH: /opt/rh/rh-postgresql10/root/usr/lib64/pkgconfig
+    PGPASSWORD: "{{ pgsqlrep_password }}"
   become: yes
   become_user: postgres
 
@@ -35,6 +36,26 @@
     owner: postgres
     group: postgres
     mode: '0644'
+  when: pgsql_version.split('.')[0] != '13'
+
+- name: PostgreSQL 13 tasks
+  when: pgsql_version.split('.')[0] == '13'
+  block:
+    - name: Create postgresql.auto.conf
+      ansible.builtin.template:
+        src: postgresql.auto.conf.j2
+        dest: "{{ pgsqlrep_data_path[pgsql_major_version] }}/postgresql.auto.conf"
+        owner: postgres
+        group: postgres
+        mode: '0644'
+    
+    - name: Create standby.signal
+      ansible.builtin.copy:
+        dest: "{{ pgsqlrep_data_path[pgsql_major_version] }}/standby.signal"
+        content: '# Ansible managed'
+        owner: postgres
+        group: postgres
+        mode: '0644'
 
 - name: Enable hot standby
   lineinfile:
