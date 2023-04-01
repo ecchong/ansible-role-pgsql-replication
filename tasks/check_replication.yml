@@ -1,0 +1,35 @@
+---
+- name: Check PostgreSQL
+  block:
+  - name: Get recovery mode
+    command: psql -x -c "select pg_is_in_recovery();"
+    register: _recovery_mode
+
+  - name: Display recovery mode
+    debug:
+      msg: "{{ _recovery_mode.stdout_lines }}"
+
+  - name: Check replication stat of master
+    when: pgsqlrep_group_name_master in group_names
+    block:
+    - name: Get replication stat
+      command: psql -x -c "select * from pg_stat_replication;"
+      register: _replication_stat
+
+    - name: Display replication stat
+      debug:
+        msg: "{{ _replication_stat.stdout_lines }}"
+
+  - name: Check replication stat of replica
+    when: pgsqlrep_group_name in group_names
+    block:
+    - name: Get wal receiver stat
+      command: psql -x -c "select * from pg_stat_wal_receiver;"
+      register: _wal_receiver_stat
+
+    - name: Display replication stat
+      debug:
+        msg: "{{ _wal_receiver_stat.stdout_lines }}"
+
+  become: true
+  become_user: postgres

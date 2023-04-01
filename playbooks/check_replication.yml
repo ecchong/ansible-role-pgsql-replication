@@ -1,0 +1,20 @@
+---
+- name: All DB
+  hosts: database[0], database_replica
+
+  tasks:
+  - name: Confirm DB inventory
+    debug:
+      msg:
+      - "Master: {{ groups['database'] }}"
+      - "Replica: {{ groups['database_replica'] }}"
+    run_once: true
+  
+  - name: Pause
+    pause:
+      seconds: 30
+
+  - name: Check replication
+    ansible.builtin.include_role:
+      name: pgsql_replication
+      tasks_from: check_replication

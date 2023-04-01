@@ -1,0 +1,31 @@
+---
+- name: All DB
+  hosts: database[0], database_replica
+
+  tasks:
+  - name: Confirm DB inventory
+    debug:
+      msg:
+      - "Master: {{ groups['database'] }}"
+      - "Replica: {{ groups['database_replica'] }}"
+    run_once: true
+  
+  - name: Pause
+    pause:
+      seconds: 30
+
+- name: Master
+  hosts: database[0]
+  roles:
+  - pgsql_replication
+
+- name: Replica
+  hosts: database_replica
+  collections:
+  - ansible.automation_platform_installer
+  roles:
+  - name: packages_el
+    vars:
+      packages_el_install_tower: no
+      packages_el_install_postgres: yes
+  - name: pgsql_replication
