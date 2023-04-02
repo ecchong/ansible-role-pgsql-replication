@@ -20,7 +20,7 @@
       debug:
         msg: "{{ _replication_stat.stdout_lines }}"
 
-  - name: Check replication stat of replica
+  - name: Check wal receiver stat of replica
     when: pgsqlrep_group_name in group_names
     block:
     - name: Get wal receiver stat
