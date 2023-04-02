@@ -1,0 +1,70 @@
+---
+- import_tasks: pgsql_version.yml
+
+- name: Include distribution specific variables
+  include_vars: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_facts.distribution }}-{{ ansible_facts.distribution_version }}.yml"
+        - "{{ ansible_facts.os_family }}-{{ ansible_facts.distribution_major_version }}.yml"
+        - "{{ ansible_facts.distribution }}.yml"
+        - "{{ ansible_facts.os_family }}.yml"
+      paths:
+        - "{{ role_path }}/vars"
+  tags:
+    - always
+
+- name: Include PostgreSQL version 13 specific variables
+  ansible.builtin.include_vars: postgresql-13.yml
+  when: pgsql_version.split('.')[0] == '13'
+
+- name: Get recovery mode
+  ansible.builtin.command: psql -t -c "select pg_is_in_recovery();"
+  register: _recovery_mode
+  become: yes
+  become_user: postgres
+
+- name: Set recovery mode
+  ansible.builtin.set_fact:
+    recovery_mode: "{{ (_recovery_mode.stdout | regex_search('t$')) | ternary(true,false) }}"
+
+- name: Confirm the DB is not recovery mode
+  ansible.builtin.assert:
+    that:
+    - not recovery_mode
+    fail_msg: "DB is in recovery mode"
+
+- name: Stop Postgresql
+  ansible.builtin.service:
+    name: postgresql
+    state: stopped
+
+- name: Rewind Postgresql DB
+  ansible.builtin.command: pg_rewind --source-server='host={{ pgsqlrep_master_address }} port=5432 user={{ pgsqlrep_user }} dbname=postgres' --target-pgdata data
+  args:
+    chdir: "/var/lib/pgsql"
+  environment:
+    PGPASSWORD: "{{ pgsqlrep_password }}"
+  become: yes
+  become_user: postgres
+  notify: restart postgresql
+  
+
+- name: Create postgresql.auto.conf
+  ansible.builtin.template:
+    src: postgresql.auto.conf.j2
+    dest: "{{ pgsqlrep_data_path[pgsql_major_version] }}/postgresql.auto.conf"
+    owner: postgres
+    group: postgres
+    mode: '0644'
+
+- name: Create standby.signal
+  ansible.builtin.copy:
+    dest: "{{ pgsqlrep_data_path[pgsql_major_version] }}/standby.signal"
+    content: '# Ansible managed'
+    owner: postgres
+    group: postgres
+    mode: '0644'
+
+
