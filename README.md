@@ -219,7 +219,27 @@ If the primary database node goes down, here is a playbook that can be used to f
     - name: restart tower
       command: ansible-tower-service restart
 ```
-This example uses AAP installer collection.
+
+Example for AAP 2
+-----------------
+Changes needed for standard inventory file
+```yaml
+...
+[database]
+node73.lab.automate.nyc pgsqlrep_role=master
+
+[database_replica]
+db2.example.com pgsqlrep_role=replica
+...
+[all:vars]
+pgsqlrep_password="my password"
+...
+```
+- "pgsqlrep_role" variable to identify role of the database
+- "[database_replica]" group that contain replica database
+- "pgsqlrep_password" variable to provide password of replication user  
+
+This example uses AAP 2.x installer collection.
 ```yaml
 ---
 - name: All DB
