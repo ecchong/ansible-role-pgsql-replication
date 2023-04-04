@@ -1,0 +1,72 @@
+---
+- import_tasks: pgsql_version.yml
+
+- name: Include distribution specific variables
+  include_vars: "{{ lookup('first_found', params) }}"
+  vars:
+    params:
+      files:
+        - "{{ ansible_facts.distribution }}-{{ ansible_facts.distribution_version }}.yml"
+        - "{{ ansible_facts.os_family }}-{{ ansible_facts.distribution_major_version }}.yml"
+        - "{{ ansible_facts.distribution }}.yml"
+        - "{{ ansible_facts.os_family }}.yml"
+      paths:
+        - "{{ role_path }}/vars"
+  tags:
+    - always
+
+- name: Include PostgreSQL version 13 specific variables
+  ansible.builtin.include_vars: postgresql-13.yml
+  when: pgsql_version.split('.')[0] == '13'
+
+- name: Only promote the first DB in database_replica group
+  when: inventory_hostname == groups[pgsqlrep_group_name][0]
+  block:
+  - name: Get recovery mode
+    ansible.builtin.command: psql -t -c "select pg_is_in_recovery();"
+    register: _recovery_mode
+    become: yes
+    become_user: postgres
+
+  - name: Set recovery mode
+    ansible.builtin.set_fact:
+      recovery_mode: "{{ (_recovery_mode.stdout | regex_search('t$')) | ternary(true,false) }}"
+
+  - name: Confirm the DB is in recovery mode
+    ansible.builtin.assert:
+      that:
+      - recovery_mode
+      fail_msg: "DB is not in recovery mode"
+
+  - name: Promote Postgresql DB
+    block:
+    - name: Promote DB
+      ansible.builtin.command: pg_ctl promote
+      args:
+        chdir: "/var/lib/pgsql"
+      environment:
+        PGPASSWORD: "{{ pgsqlrep_password }}"
+        PGDATA: "/var/lib/pgsql/data"
+
+    - name: Force checkpoint
+      ansible.builtin.command: psql -t -c 'checkpoint'
+      args:
+        chdir: "/var/lib/pgsql"
+      environment:
+        PGPASSWORD: "{{ pgsqlrep_password }}"
+ 
+    - name: Force stop DB
+      ansible.builtin.command: pg_ctl stop
+      args:
+        chdir: "/var/lib/pgsql"
+      environment:
+        PGPASSWORD: "{{ pgsqlrep_password }}"
+        PGDATA: "/var/lib/pgsql/data"
+    
+    become: yes
+    become_user: postgres
+
+  - name: Restart Postgresql 
+    ansible.builtin.service:
+      name: postgresql
+      state: restarted
