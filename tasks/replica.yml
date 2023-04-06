@@ -3,10 +3,16 @@
     name: "{{ pgsql_service_name[pgsql_major_version] }}"
     state: stopped
 
+- name: Check data directory is a mountpoint
+  ansible.builtin.command: mountpoint -q "{{ pgsqlrep_data_path[pgsql_major_version] }}"
+  register: _check_data_dir
+  ignore_errors: true
+
 - name: Clear out data directory
   file:
     path: "{{ pgsqlrep_data_path[pgsql_major_version] }}"
     state: absent
+  when: _check_data_dir.rc == 0
 
 - name: Create empty data directory
   file:
